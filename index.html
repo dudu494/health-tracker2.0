@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HealthTrack</title>
+    <!-- 載入 Tailwind CSS 瀏覽器版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Vue 3 瀏覽器版 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        /* 隱藏滾動條，保持奶油風極簡視覺 */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 99px;
+        }
+        .ease-out-back {
+            transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        /* 針對 iOS 網頁應用的彈性橡皮筋效果優化 */
+        body {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: none;
+        }
+    </style>
+</head>
+<body class="bg-[#fcfbfa] text-slate-800 antialiased font-sans pb-24 md:pb-6">
+
+    <div id="app" class="min-h-screen flex flex-col">
+        
+        <!-- Toast 提示氣泡組件 -->
+        <div v-if="toast.show" 
+             class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-2 px-5 py-3 rounded-2xl shadow-xl border font-bold text-xs transition-all duration-300"
+             :class="toast.type === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : 'bg-amber-500 text-white border-amber-400'">
+            <span>🐾</span>
+            <span>{{ toast.message }}</span>
+        </div>
+
+        <!-- 頂部導航欄 (乾淨極簡) -->
+        <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-stone-100 shadow-xs px-4 py-4 md:px-8">
+            <div class="max-w-5xl mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-3.5">
+                    <div class="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100">
+                        <!-- 閃爍星光 SVG -->
+                        <svg class="w-5.5 h-5.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21L8.188 15.904L3 15L8.188 14.096L9 9L9.813 14.096L15 15L9.813 15.904Z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-black tracking-tight text-slate-900">
+                            HealthTrack 
+                            <span class="text-indigo-600 text-sm font-semibold bg-indigo-50 px-2 py-0.5 rounded-lg ml-1">v2.2</span>
+                        </h1>
+                    </div>
+                </div>
+                <div class="hidden sm:flex items-center space-x-2 bg-slate-50 border border-slate-200/60 rounded-full px-3.5 py-1 text-xs text-slate-500 font-bold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>系統狀態良好</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主體內容區 -->
+        <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-4 md:py-8 space-y-6">
+            
+            <!-- TAB 導航欄 (電腦端顯示) -->
+            <div class="hidden md:flex space-x-1 bg-slate-200/40 p-1.5 rounded-2xl w-fit">
+                <button @click="activeTab = 'dashboard'" :class="activeTab === 'dashboard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'" class="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
+                    <span>今日看板</span>
+                </button>
+                <button @click="activeTab = 'exercise-ref'" :class="activeTab === 'exercise-ref' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'" class="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
+                    <span>有氧與重訓百科</span>
+                </button>
+                <button @click="activeTab = 'history'" :class="activeTab === 'history' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'" class="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
+                    <span>歷史趨勢分析</span>
+                </button>
+                <button @click="activeTab = 'logs'" :class="activeTab === 'logs' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'" class="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
+                    <span>明細日誌 ({{ todayData.foods.length + todayData.exercises.length }})</span>
+                </button>
+                <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'" class="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
+                    <span>個人設定</span>
+                </button>
+            </div>
+
+            <!-- ================================== TAB 1. 今日看板 ================================== -->
+            <div v-if="activeTab === 'dashboard'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- 靜態藍貓與今日健康分析面板 (完美適應手機) -->
+                <div class="md:col-span-3 bg-gradient-to-r from-indigo-900 via-slate-900 to-blue-950 text-white rounded-3xl p-5 md:p-6 shadow-xl relative overflow-hidden flex flex-col sm:flex-row items-center gap-5 border border-slate-800">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                    
+                    <!-- 藍貓波波 SVG 矢量畫像 (保留英短可愛視覺) -->
+                    <div class="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-slate-800/80 rounded-2xl p-2 border border-slate-700 shadow-inner flex items-center justify-center">
+                        <svg viewBox="0 0 100 100" class="w-full h-full">
+                            <polygon points="15,40 5,10 35,28" fill="#4B5A75" stroke="#374151" stroke-width="1.5" />
+                            <polygon points="18,36 10,15 32,26" fill="#FCA5A5" />
+                            <polygon points="85,40 95,10 65,28" fill="#4B5A75" stroke="#374151" stroke-width="1.5" />
+                            <polygon points="82,36 90,15 68,26" fill="#FCA5A5" />
+                            <ellipse cx="50" cy="55" rx="42" ry="36" fill="#5F7190" stroke="#374151" stroke-width="2" />
+                            <circle cx="32" cy="50" r="9" fill="#FBBF24" />
+                            <ellipse cx="32" cy="50" rx="3" ry="7" fill="#111827" />
+                            <circle cx="35" cy="47" r="2.5" fill="#FFFFFF" opacity="0.8" />
+                            <circle cx="68" cy="50" r="9" fill="#FBBF24" />
+                            <ellipse cx="68" cy="50" rx="3" ry="7" fill="#111827" />
+                            <circle cx="71" cy="47" r="2.5" fill="#FFFFFF" opacity="0.8" />
+                            <ellipse cx="20" cy="62" rx="5" ry="3" fill="#FCA5A5" opacity="0.4" />
+                            <ellipse cx="80" cy="62" rx="5" ry="3" fill="#FCA5A5" opacity="0.4" />
+                            <polygon points="50,60 46,56 54,56" fill="#FCA5A5" />
+                            <path d="M 46,63 C 46,66 50,66 50,63" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" />
+                            <path d="M 50,63 C 50,66 54,66 54,63" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" />
+                            <line x1="22" y1="62" x2="4" y2="60" stroke="#E5E7EB" stroke-width="1.5" stroke-linecap="round" />
+                            <line x1="22" y1="67" x2="6" y2="69" stroke="#E5E7EB" stroke-width="1.5" stroke-linecap="round" />
+                            <line x1="78" y1="62" x2="96" y2="60" stroke="#E5E7EB" stroke-width="1.5" stroke-linecap="round" />
+                            <line x1="78" y1="67" x2="94" y2="69" stroke="#E5E7EB" stroke-width="1.5" stroke-linecap="round" />
+                        </svg>
+                    </div>
+
+                    <!-- 專業科學指標分析面板 -->
+                    <div class="flex-1 space-y-1.5 text-center sm:text-left">
+                        <div class="flex items-center justify-center sm:justify-start space-x-2">
+                          <span class="text-[10px] sm:text-xs font-extrabold bg-indigo-600 text-white px-2.5 py-0.5 sm:py-1 rounded-lg uppercase tracking-wider shadow-sm">
+                            今日數據綜合分析
+                          </span>
+                          <span class="text-[11px] text-indigo-300 font-medium">5月19日起步第 {{ combinedChartData.length }} 天</span>
+                        </div>
+                        <p class="text-xs sm:text-sm md:text-base font-medium text-slate-100 leading-relaxed">
+                          {{ dynamicHealthAnalysis }}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 今日卡路里收支 -->
+                <div class="md:col-span-2 bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-4 sm:mb-6">
+                        <div>
+                          <h2 class="text-base font-extrabold text-slate-900 tracking-tight">今日卡路里收支</h2>
+                          <p class="text-xs text-slate-400">赤字限定：{{ profile.calorieGoal }} kcal / 天</p>
+                        </div>
+                        <span class="text-[10px] font-black tracking-widest text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg uppercase">
+                          Live
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center">
+                        <!-- 圓環進度 (手機端縮放優化) -->
+                        <div class="sm:col-span-5 flex flex-col items-center justify-center relative">
+                            <div class="relative w-36 h-36 sm:w-40 sm:h-40 flex items-center justify-center">
+                                <svg class="w-full h-full transform -rotate-90">
+                                  <circle cx="72" cy="72" r="62" stroke="#f1f5f9" stroke-width="10" fill="transparent" class="sm:cx-80 sm:cy-80 sm:r-70" />
+                                  <circle cx="72" cy="72" r="62" stroke="#f43f5e" stroke-width="10" fill="transparent" 
+                                          :stroke-dasharray="2 * Math.PI * 62"
+                                          :stroke-dashoffset="2 * Math.PI * 62 * (1 - todayTotals.percent / 100)"
+                                          stroke-linecap="round"
+                                          class="transition-all duration-700 ease-out-back sm:cx-80 sm:cy-80 sm:r-70" />
+                                </svg>
+                                <div class="absolute text-center">
+                                  <span class="text-[9px] text-slate-400 font-bold block">預算用量</span>
+                                  <p class="text-2xl sm:text-3xl font-black text-slate-950">{{ todayTotals.percent }}%</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 數據網格 -->
+                        <div class="sm:col-span-7 grid grid-cols-2 gap-3 sm:gap-4">
+                            <div class="bg-[#fdfcfb] border border-stone-100/80 rounded-2xl p-3 sm:p-4 shadow-2xs">
+                                <div class="flex items-center space-x-1 text-emerald-600 mb-1">
+                                  <span class="text-xs">🍽️</span>
+                                  <span class="text-[11px] sm:text-xs font-extrabold">今日攝入</span>
+                                </div>
+                                <p class="text-lg sm:text-2xl font-black text-slate-900">{{ todayTotals.intake }} <span class="text-[10px] sm:text-xs font-normal text-slate-400">kcal</span></p>
+                            </div>
+
+                            <div class="bg-[#fdfcfb] border border-stone-100/80 rounded-2xl p-3 sm:p-4 shadow-2xs">
+                                <div class="flex items-center space-x-1 text-rose-500 mb-1">
+                                  <span class="text-xs">🔥</span>
+                                  <span class="text-[11px] sm:text-xs font-extrabold">運動消耗</span>
+                                </div>
+                                <p class="text-lg sm:text-2xl font-black text-rose-600">{{ todayTotals.burned }} <span class="text-[10px] sm:text-xs font-normal text-slate-400">kcal</span></p>
+                            </div>
+
+                            <!-- 淨熱量區塊 (微縮奶油風，比例超協調) -->
+                            <div class="col-span-2 bg-[#fdfcfb] border border-stone-200/80 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex justify-between items-center">
+                                <div>
+                                  <span class="text-[10px] text-slate-400 font-bold tracking-tight block mb-0.5">淨熱量 (攝入-消耗)</span>
+                                  <p class="text-base sm:text-lg font-black text-slate-800">{{ todayTotals.net }} <span class="text-[10px] font-normal text-slate-400">kcal</span></p>
+                                </div>
+                                <div class="text-right">
+                                  <span class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-md font-bold inline-block mb-1" :class="todayTotals.remaining >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
+                                    {{ todayTotals.remaining >= 0 ? '剩餘配額' : '超出限額' }}
+                                  </span>
+                                  <p class="text-xs sm:text-sm font-black" :class="todayTotals.remaining >= 0 ? 'text-emerald-600' : 'text-rose-600'">
+                                    {{ Math.abs(todayTotals.remaining) }} kcal
+                                  </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 快捷按鈕 (手機端放大，更易點按) -->
+                    <div class="grid grid-cols-2 gap-3 mt-5 pt-5 border-t border-slate-100">
+                        <button @click="showFoodModal = true" class="flex items-center justify-center space-x-1 py-3 bg-emerald-50 active:bg-emerald-100 text-emerald-700 font-extrabold rounded-xl text-xs transition">
+                            <span>➕ 記一筆飲食</span>
+                        </button>
+                        <button @click="showExerciseModal = true" class="flex items-center justify-center space-x-1 py-3 bg-rose-50 active:bg-rose-100 text-rose-600 font-extrabold rounded-xl text-xs transition">
+                            <span>➕ 智能記運動</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 右側體重與體脂 -->
+                <div class="space-y-6">
+                    <div class="bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm relative overflow-hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wider">體重與體脂率</h3>
+                            <button @click="weightInput = todayData.weight.toString(); bodyFatInput = todayData.bodyFat.toString(); showWeightModal = true;" class="p-2 bg-slate-50 hover:bg-slate-100 text-indigo-600 rounded-xl transition">
+                                <span class="text-sm font-bold">➕ 登記</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <span class="text-[10px] text-slate-400 font-bold block mb-1">今日空腹體重</span>
+                                <div class="flex items-baseline space-x-0.5">
+                                  <span class="text-3xl font-black text-slate-950">{{ todayData.weight }}</span>
+                                  <span class="text-xs font-semibold text-slate-400">kg</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-slate-400 font-bold block mb-1">今日體脂率</span>
+                                <div class="flex items-baseline space-x-0.5">
+                                  <span class="text-3xl font-black text-indigo-600">{{ todayData.bodyFat }}</span>
+                                  <span class="text-xs font-semibold text-indigo-400">%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 體脂與體重偏差 -->
+                        <div class="text-xs text-slate-500 space-y-2 border-t border-slate-50 pt-4">
+                            <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl">
+                                <span>⚖️</span>
+                                <div class="text-[11px]">
+                                  <span v-if="todayData.weight > profile.weightGoal">距離目標還差 <strong class="text-amber-600 font-extrabold">{{ (todayData.weight - profile.weightGoal).toFixed(1) }} kg</strong></span>
+                                  <span v-else class="text-emerald-600 font-extrabold">已達目標體重！</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-xl">
+                                <span>🔥</span>
+                                <div class="text-[11px]">
+                                  <span v-if="todayData.bodyFat > profile.bodyFatGoal">距離目標還差 <strong class="text-indigo-600 font-extrabold">{{ (todayData.bodyFat - profile.bodyFatGoal).toFixed(1) }}%</strong></span>
+                                  <span v-else class="text-emerald-600 font-extrabold">體脂率已達標！</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BMI 指數 -->
+                        <div class="bg-[#fdfcfb] border border-stone-100/80 rounded-2xl p-3 flex justify-between items-center text-xs mt-4 shadow-2xs">
+                            <div>
+                              <p class="text-slate-400 text-[10px] mb-0.5">我的即時 BMI</p>
+                              <p class="font-bold px-2.5 py-0.5 rounded-lg text-[10px]" :class="todayTotals.bmiColor">{{ todayTotals.bmi }} - {{ todayTotals.bmiCategory }}</p>
+                            </div>
+                            <div class="text-right text-slate-400 text-[10px]">
+                              <p>身高: {{ profile.height }}cm</p>
+                              <p>目標體脂: {{ profile.bodyFatGoal }}%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 歸檔保存 -->
+                    <button @click="handleCompleteDay" class="w-full py-4 bg-gradient-to-br from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white font-extrabold rounded-2xl text-xs transition shadow-md flex items-center justify-center space-x-2">
+                        <span>🏆 保存今日數據至歷史日誌</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ================================== TAB 2. 運動百科 ================================== -->
+            <div v-if="activeTab === 'exercise-ref'" class="space-y-6">
+                <div class="bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div>
+                          <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                            🏋️ 有氧與重訓卡路里科學百科
+                          </h2>
+                          <p class="text-xs text-slate-400">
+                            基於您當前體重（{{ todayData.weight }} kg）自動換算每半小時及一小時的真實卡路里消耗
+                          </p>
+                        </div>
+                        <!-- 搜尋 -->
+                        <div class="relative w-full sm:w-64">
+                          <input type="text" placeholder="🔍 搜尋重訓、樓梯機、爬坡..." v-model="searchExerciseQuery" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none transition shadow-2xs" />
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-600 mb-6 space-y-1">
+                        <span class="font-bold text-slate-700 block mb-1">📚 ACSM 能耗計算原理：</span>
+                        <p>能量消耗 (千卡 kcal) ≈ MET (強度) × 體重 (kg) × 運動時間 (小時)</p>
+                    </div>
+
+                    <!-- 運動項目列表 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div v-for="(item, idx) in filteredMetDatabase" :key="idx" class="p-4 bg-white hover:bg-indigo-50/15 border border-stone-100 hover:border-indigo-200 rounded-2xl transition flex flex-col justify-between shadow-2xs">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                  <span class="text-[10px] font-black px-2.5 py-0.5 rounded-md" :class="item.category === '重量訓練' ? 'bg-indigo-100 text-indigo-700' : 'bg-rose-100 text-rose-700'">
+                                    {{ item.category }}
+                                  </span>
+                                  <h4 class="font-extrabold text-sm text-slate-800 mt-2.5">{{ item.name }}</h4>
+                                  <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">{{ item.desc }}</p>
+                                </div>
+                                <div class="text-right">
+                                  <span class="text-[10px] text-slate-400 block font-bold">強度：</span>
+                                  <p class="text-sm font-black text-indigo-600">MET {{ item.met }}</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-50 text-xs">
+                                <div class="bg-slate-50 p-2 rounded-xl text-center">
+                                  <span class="text-slate-400 block text-[9px] font-bold">30分鐘</span>
+                                  <strong class="text-slate-700 text-xs font-extrabold">{{ Math.round(item.met * todayData.weight * 0.5) }} kcal</strong>
+                                </div>
+                                <div class="bg-indigo-50/50 p-2 rounded-xl text-center">
+                                  <span class="text-indigo-600 block text-[9px] font-bold">1小時</span>
+                                  <strong class="text-indigo-700 text-xs font-extrabold">{{ Math.round(item.met * todayData.weight) }} kcal</strong>
+                                </div>
+                            </div>
+                            <button @click="quickSelectExercise(item)" class="mt-3.5 w-full py-2.5 bg-slate-900 active:bg-slate-800 text-white text-xs font-bold rounded-xl transition">
+                              選用此項目並記運動
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================== TAB 3. 歷史趨勢 ================================== -->
+            <div v-if="activeTab === 'history'" class="space-y-6">
+                <!-- 篩選列 -->
+                <div class="bg-white rounded-3xl p-4 border border-stone-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <!-- 月份選擇下拉選單 (極簡優雅) -->
+                  <div class="flex items-center space-x-2.5 w-full sm:w-auto">
+                    <span class="text-xs font-extrabold text-slate-400 flex-shrink-0">月份篩選:</span>
+                    <select v-model="selectedMonth" class="flex-grow sm:flex-grow-0 px-4 py-2.5 bg-slate-50 border border-stone-200 text-slate-700 font-extrabold text-xs rounded-xl outline-none transition focus:border-indigo-500 cursor-pointer shadow-2xs">
+                        <option v-for="(month, i) in availableMonths" :key="i" :value="month">
+                          {{ month === '全部' ? '全部歷史數據' : parseInt(month) + '月' }}
+                        </option>
+                    </select>
+                  </div>
+
+                  <!-- 指標切換 -->
+                  <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+                    <button @click="historyChartType = 'weight'" :class="historyChartType === 'weight' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition">
+                      ⚖️ 體重
+                    </button>
+                    <button @click="historyChartType = 'bodyFat'" :class="historyChartType === 'bodyFat' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500'" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition">
+                      🔥 體脂率
+                    </button>
+                  </div>
+                </div>
+
+                <!-- SVG 圖表 -->
+                <div class="bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm">
+                  <h2 class="text-base font-extrabold text-slate-900 mb-1">
+                    {{ historyChartType === 'weight' ? '歷史體重波動曲線 (kg)' : '歷史體脂率變化趨勢 (%)' }}
+                  </h2>
+                  <p class="text-xs text-slate-400 mb-6">
+                    當前顯示：{{ selectedMonth === '全部' ? '最新 10 條記錄' : parseInt(selectedMonth) + '月記錄' }}
+                  </p>
+                  
+                  <div class="w-full overflow-x-auto">
+                    <div class="min-w-[500px] h-60 relative">
+                      <svg class="w-full h-full" viewBox="0 0 600 240">
+                        <line v-for="idx in [0,1,2,3,4]" :key="idx" x1="50" :y1="20 + idx * 45" x2="560" :y2="20 + idx * 45" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="4 4" />
+                        
+                        <g v-if="filteredChartData.length > 1">
+                          <!-- 漸變背景 -->
+                          <path :d="chartPointsShadowPath" :fill="historyChartType === 'weight' ? 'url(#weightGrad)' : 'url(#fatGrad)'" opacity="0.08" />
+                          <!-- 折線 -->
+                          <polyline fill="none" :stroke="historyChartType === 'weight' ? '#6366f1' : '#ec4899'" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" :points="chartPointsPath" />
+                          
+                          <!-- 頂端文字與點 -->
+                          <g v-for="(p, idx) in chartPoints" :key="idx">
+                            <circle :cx="p.x" :cy="p.y" r="5.5" fill="#ffffff" :stroke="historyChartType === 'weight' ? '#6366f1' : '#ec4899'" stroke-width="3" />
+                            <text :x="p.x" :y="p.y - 14" text-anchor="middle" class="text-xs font-black fill-slate-800" font-size="11">
+                                {{ p.val }}{{ historyChartType === 'weight' ? 'kg' : '%' }}
+                            </text>
+                            <text :x="p.x" y="222" text-anchor="middle" class="text-[10px] font-bold fill-slate-400" font-size="11">
+                                {{ p.date }}
+                            </text>
+                          </g>
+                        </g>
+                        
+                        <defs>
+                          <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#6366f1" />
+                            <stop offset="100%" stop-color="#ffffff" />
+                          </linearGradient>
+                          <linearGradient id="fatGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#ec4899" />
+                            <stop offset="100%" stop-color="#ffffff" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 歷史數據表格 -->
+                <div class="bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm">
+                  <h3 class="text-sm font-extrabold text-slate-900 mb-4 uppercase tracking-wider">歷史打卡明細 (支援 365 天記錄)</h3>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr class="border-b border-stone-100 text-slate-400 font-bold">
+                          <th class="py-3 px-4">日期</th>
+                          <th class="py-3 px-4">體重 (kg)</th>
+                          <th class="py-3 px-4">體脂率 (%)</th>
+                          <th class="py-3 px-4">今日食物 (kcal)</th>
+                          <th class="py-3 px-4">今日運動 (kcal)</th>
+                          <th class="py-3 px-4">淨熱量收支</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(day, idx) in combinedChartData.slice().reverse()" :key="idx" class="border-b border-stone-50 hover:bg-[#faf9f8]/40 transition">
+                          <td class="py-3 px-4 font-bold text-slate-700">{{ day.date }}</td>
+                          <td class="py-3 px-4 text-slate-600 font-medium">{{ day.weight }} kg</td>
+                          <td class="py-3 px-4 text-indigo-600 font-bold">{{ day.bodyFat }}%</td>
+                          <td class="py-3 px-4 text-emerald-600 font-bold">+{{ getFoodCaloriesSum(day) }} kcal</td>
+                          <td class="py-3 px-4 text-rose-500 font-bold">-{{ getExerciseCaloriesSum(day) }} kcal</td>
+                          <td class="py-3 px-4">
+                            <span class="px-2.5 py-1 rounded-full font-black text-[9px]" :class="(getFoodCaloriesSum(day) - getExerciseCaloriesSum(day)) <= profile.calorieGoal ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
+                              {{ (getFoodCaloriesSum(day) - getExerciseCaloriesSum(day)) <= profile.calorieGoal ? '赤字達標' : '熱量超限' }}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+            </div>
+
+            <!-- ================================== TAB 4. 明細日誌 ================================== -->
+            <div v-if="activeTab === 'logs'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 飲食 -->
+                <div class="bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm">
+                  <div class="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wider">🍽️ 飲食攝入明細</h3>
+                      <p class="text-xs text-slate-400">總計攝入 {{ todayTotals.intake }} kcal</p>
+                    </div>
+                    <button @click="showFoodModal = true" class="px-3 py-2 bg-emerald-50 active:bg-emerald-100 text-emerald-700 font-extrabold rounded-xl text-xs transition">
+                      <span>添加飲食</span>
+                    </button>
+                  </div>
+                  <div v-if="todayData.foods.length === 0" class="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <p class="text-xs text-slate-400">今天尚未有進食記錄</p>
+                  </div>
+                  <div v-else class="space-y-2.5 max-h-[400px] overflow-y-auto">
+                    <div v-for="food in todayData.foods" :key="food.id" class="flex justify-between items-center p-3 bg-[#fdfcfb] rounded-2xl border border-stone-100 hover:border-slate-200 group transition">
+                      <div class="flex items-center space-x-3">
+                        <span class="text-[9px] font-black px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700">
+                          {{ food.category || '加餐' }}
+                        </span>
+                        <p class="text-xs font-bold text-slate-700">{{ food.name }}</p>
+                      </div>
+                      <div class="flex items-center space-x-3">
+                        <span class="text-xs font-extrabold text-slate-600">+{{ food.calories }} kcal</span>
+                        <button @click="handleDeleteFood(food.id)" class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition">
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 運動 -->
+                <div class="bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm">
+                  <div class="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wider">🏋️ 運動消耗明細</h3>
+                      <p class="text-xs text-slate-400">總計運動消耗 {{ todayTotals.burned }} kcal</p>
+                    </div>
+                    <button @click="showExerciseModal = true" class="px-3 py-2 bg-rose-50 active:bg-rose-100 text-rose-600 font-extrabold rounded-xl text-xs transition">
+                      <span>添加運動</span>
+                    </button>
+                  </div>
+                  <div v-if="todayData.exercises.length === 0" class="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <p class="text-xs text-slate-400">今天尚未開始運動消耗哦</p>
+                  </div>
+                  <div v-else class="space-y-2.5 max-h-[400px] overflow-y-auto">
+                    <div v-for="exercise in todayData.exercises" :key="exercise.id" class="flex justify-between items-center p-3 bg-[#fdfcfb] rounded-2xl border border-stone-100 hover:border-slate-200 group transition">
+                      <div class="flex items-center space-x-3">
+                        <span class="text-[9px] font-black px-2 py-0.5 rounded-md bg-rose-100 text-rose-600">
+                          {{ exercise.category || '有氧' }}
+                        </span>
+                        <p class="text-xs font-bold text-slate-700">{{ exercise.name }}</p>
+                      </div>
+                      <div class="flex items-center space-x-3">
+                        <span class="text-xs font-extrabold text-rose-600">-{{ exercise.calories }} kcal</span>
+                        <button @click="handleDeleteExercise(exercise.id)" class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition">
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+            </div>
+
+            <!-- ================================== TAB 5. 個人設定 ================================== -->
+            <div v-if="activeTab === 'settings'" class="max-w-2xl mx-auto bg-white rounded-3xl p-5 md:p-6 border border-stone-100 shadow-sm space-y-6">
+                <div class="flex items-center space-x-3 pb-4 border-b border-stone-100">
+                  <div class="p-2.5 bg-slate-100 rounded-xl text-slate-600">👤</div>
+                  <div>
+                    <h2 class="text-base font-extrabold text-slate-900 tracking-tight">個人身材配置與目標</h2>
+                    <p class="text-xs text-slate-400">這些參數會動態重新精確調整運動計算邏輯</p>
+                  </div>
+                </div>
+
+                <form @submit.prevent="triggerToast('個人身材指標配置保存成功！')" class="space-y-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 mb-1.5">暱稱</label>
+                      <input type="text" v-model="profile.name" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none transition" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 mb-1.5">身高 (厘米 cm)</label>
+                      <input type="number" v-model.number="profile.height" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none transition" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 mb-1.5">每日卡路里限定預算 (kcal)</label>
+                      <input type="number" v-model.number="profile.calorieGoal" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 focus:border-indigo-500 rounded-xl text-xs outline-none transition" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5">目標體重 (kg)</label>
+                        <input type="number" step="0.1" v-model.number="profile.weightGoal" class="w-full px-4 py-2.5 bg-slate-50 border border-stone-100 focus:border-indigo-500 rounded-xl text-xs outline-none transition" />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5">目標體脂 (%)</label>
+                        <input type="number" step="0.1" v-model.number="profile.bodyFatGoal" class="w-full px-4 py-2.5 bg-slate-50 border border-stone-100 focus:border-indigo-500 rounded-xl text-xs outline-none transition" />
+                      </div>
+                    </div>
+                  </div>
+                  <button type="submit" class="w-full py-3.5 bg-slate-900 active:bg-slate-800 text-white font-extrabold rounded-2xl text-xs transition shadow-md">
+                    確認保存身材設定
+                  </button>
+                </form>
+            </div>
+
+        </main>
+
+        <!-- ================================== MODAL: 記飲食 ================================== -->
+        <div v-if="showFoodModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+          <div class="bg-white rounded-3xl w-full max-w-md p-5 md:p-6 border border-stone-100 shadow-2xl animate-in fade-in duration-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-base font-extrabold text-slate-900">🍽&nbsp;記錄今天進食</h3>
+              <button @click="showFoodModal = false" class="text-xs font-bold text-slate-400 hover:text-slate-600 px-2 py-1 rounded">關閉</button>
+            </div>
+
+            <div class="mb-4">
+              <p class="text-[10px] font-bold text-slate-400 mb-2">快速選擇常用預設</p>
+              <div class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                <button v-for="(preset, idx) in presetFoods" :key="idx" @click="handleAddPresetFood(preset)" class="flex flex-col justify-between items-start p-2.5 bg-slate-50 active:bg-emerald-50 active:border-emerald-200 border border-stone-100 rounded-xl text-left transition">
+                    <span class="text-[11px] font-bold text-slate-700 truncate w-full">{{ preset.name }}</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold">{{ preset.calories }} kcal</span>
+                </button>
+              </div>
+            </div>
+
+            <form @submit.prevent="handleAddFood" class="space-y-4">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 mb-1">食物或飲品名稱</label>
+                <input type="text" v-model="foodForm.name" placeholder="如：香煎雞胸肉、凍奶茶少甜" class="w-full px-3 py-2.5 bg-slate-50 border border-stone-100 focus:border-emerald-500 rounded-xl text-xs outline-none transition" required />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 mb-1">熱量 (千卡 kcal)</label>
+                  <input type="number" v-model.number="foodForm.calories" placeholder="如：150" class="w-full px-3 py-2.5 bg-slate-50 border border-stone-100 focus:border-emerald-500 rounded-xl text-xs outline-none transition" required />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 mb-1">餐別</label>
+                  <select v-model="foodForm.category" class="w-full px-3 py-2.5 bg-slate-50 border border-stone-100 focus:border-emerald-500 rounded-xl text-xs outline-none transition">
+                    <option value="早餐">早餐</option>
+                    <option value="午餐">午餐</option>
+                    <option value="晚餐">晚餐</option>
+                    <option value="加餐">加餐 / 零食</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="w-full py-3.5 bg-emerald-500 active:bg-emerald-600 text-white font-bold rounded-2xl text-xs transition">確認添加飲食</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- ================================== MODAL: 智能記運動 ================================== -->
+        <div v-if="showExerciseModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+          <div class="bg-white rounded-3xl w-full max-w-md p-5 md:p-6 border border-stone-100 shadow-2xl animate-in fade-in duration-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-1.5">🔥 登記今日運動消耗</h3>
+              <button @click="showExerciseModal = false" class="text-xs font-bold text-slate-400 hover:text-slate-600 px-2 py-1 rounded">關閉</button>
+            </div>
+
+            <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl mb-4">
+              <button type="button" @click="exerciseInputMode = 'smart'" :class="exerciseInputMode === 'smart' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition">
+                🔥 智能計算 (爬坡/樓梯機/重訓)
+              </button>
+              <button type="button" @click="exerciseInputMode = 'custom'" :class="exerciseInputMode === 'custom' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'" class="flex-1 py-1.5 text-xs font-bold rounded-lg transition">
+                📝 手動錄入
+              </button>
+            </div>
+
+            <form @submit.prevent="handleAddExercise" class="space-y-4">
+              <div v-if="exerciseInputMode === 'smart'" class="space-y-3">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 mb-1">選擇重訓、爬坡或樓梯機項目</label>
+                  <select v-model="selectedMetIndex" class="w-full px-3 py-2.5 bg-slate-50 border border-rose-100 focus:border-rose-500 rounded-xl text-xs outline-none transition">
+                    <option v-for="(item, idx) in metDatabase" :key="idx" :value="idx">
+                      [{{ item.category }}] {{ item.name }} (MET: {{ item.met }})
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 mb-1">運動持續時間</label>
+                  <div class="flex items-center space-x-3">
+                    <input type="range" min="5" max="180" step="5" v-model.number="exerciseDuration" class="flex-1 accent-rose-500" />
+                    <span class="text-xs font-bold text-slate-700 w-16 text-right">{{ exerciseDuration }} 分鐘</span>
+                  </div>
+                </div>
+                <div class="p-3 bg-rose-50/50 border border-rose-100 rounded-2xl">
+                  <div class="flex justify-between items-center text-[9px] text-slate-400">
+                    <span>公式: MET × 體重({{ todayData.weight }}kg) × 時間</span>
+                  </div>
+                  <div class="mt-2 pt-2 border-t border-rose-100/50 flex justify-between items-baseline">
+                    <span class="text-xs font-bold text-slate-700">預計您將消耗：</span>
+                    <span class="text-xl font-black text-rose-600">{{ calculatedSmartBurn }} <span class="text-xs font-normal text-slate-500">kcal</span></span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="space-y-3">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 mb-1">運動項目名稱</label>
+                  <input type="text" v-model="exerciseForm.name" placeholder="如：重量訓練" class="w-full px-3 py-2.5 bg-slate-50 border border-stone-100 focus:border-rose-500 rounded-xl text-xs outline-none transition" required />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-1">消耗 (kcal 千卡)</label>
+                    <input type="number" v-model.number="exerciseForm.calories" placeholder="如：250" class="w-full px-3 py-2.5 bg-slate-50 border border-stone-100 focus:border-rose-500 rounded-xl text-xs outline-none transition" required />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-1">類型</label>
+                    <select v-model="exerciseForm.category" class="w-full px-3 py-2.5 bg-[#fdfcfb] border border-stone-100 focus:border-rose-500 rounded-xl text-xs outline-none transition">
+                      <option value="重量訓練">重量訓練</option>
+                      <option value="有氧訓練">有氧訓練</option>
+                      <option value="球類運動">球類運動</option>
+                      <option value="日常勞動">日常勞動</option>
+                      <option value="拉伸放鬆">拉伸放鬆</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="w-full py-3 bg-rose-500 active:bg-rose-600 text-white font-bold rounded-2xl text-xs transition">保存記錄</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- ================================== MODAL: 更新體重體脂 ================================== -->
+        <div v-if="showWeightModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+          <div class="bg-white rounded-3xl w-full max-w-sm p-5 md:p-6 border border-stone-100 shadow-2xl animate-in fade-in duration-200">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-base font-extrabold text-slate-900">⚖️ 稱重與體脂登記</h3>
+              <button @click="showWeightModal = false" class="text-xs font-bold text-slate-400 hover:text-slate-600 px-2 py-1 rounded">取消</button>
+            </div>
+            <form @submit.prevent="handleSaveWeightAndFat" class="space-y-4">
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">今日空腹體重 (kg)</label>
+                  <div class="flex items-center space-x-2">
+                    <input type="number" step="0.1" v-model.number="weightInput" class="flex-1 px-4 py-3 bg-slate-50 border border-indigo-100 focus:border-indigo-500 rounded-xl text-lg font-extrabold text-slate-800 outline-none transition" required />
+                    <span class="text-sm font-semibold text-slate-500">kg</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">今日體脂率 (%)</label>
+                  <div class="flex items-center space-x-2">
+                    <input type="number" step="0.1" v-model.number="bodyFatInput" class="flex-1 px-4 py-3 bg-slate-50 border border-indigo-100 focus:border-indigo-500 rounded-xl text-lg font-extrabold text-slate-800 outline-none transition" />
+                    <span class="text-sm font-semibold text-slate-500">%</span>
+                  </div>
+                </div>
+              </div>
+              <button type="submit" class="w-full py-3 bg-indigo-500 active:bg-indigo-600 text-white font-bold rounded-2xl text-xs transition shadow-md">確認即時更新</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 移動端底部全局固定導航欄 (像原生 App 一樣流暢，點擊直接切換) -->
+        <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100/80 shadow-lg px-2 py-2 flex justify-around items-center z-40">
+            <button @click="activeTab = 'dashboard'" :class="activeTab === 'dashboard' ? 'text-indigo-600 font-extrabold' : 'text-slate-400 font-medium'" class="flex flex-col items-center py-1 flex-1">
+                <span class="text-xl mb-0.5">📊</span>
+                <span class="text-[10px]">今日看板</span>
+            </button>
+            <button @click="activeTab = 'exercise-ref'" :class="activeTab === 'exercise-ref' ? 'text-indigo-600 font-extrabold' : 'text-slate-400 font-medium'" class="flex flex-col items-center py-1 flex-1">
+                <span class="text-xl mb-0.5">🏃</span>
+                <span class="text-[10px]">有氧重訓</span>
+            </button>
+            <button @click="activeTab = 'history'" :class="activeTab === 'history' ? 'text-indigo-600 font-extrabold' : 'text-slate-400 font-medium'" class="flex flex-col items-center py-1 flex-1">
+                <span class="text-xl mb-0.5">📈</span>
+                <span class="text-[10px]">歷史趨勢</span>
+            </button>
+            <button @click="activeTab = 'logs'" :class="activeTab === 'logs' ? 'text-indigo-600 font-extrabold' : 'text-slate-400 font-medium'" class="flex flex-col items-center py-1 flex-1">
+                <span class="text-xl mb-0.5">📋</span>
+                <span class="text-[10px]">明細日誌</span>
+            </button>
+            <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'text-indigo-600 font-extrabold' : 'text-slate-400 font-medium'" class="flex flex-col items-center py-1 flex-1">
+                <span class="text-xl mb-0.5">⚙️</span>
+                <span class="text-[10px]">個人設定</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Vue 3 核心邏輯代碼 -->
+    <script>
+        // 宣告數據常量
+        const PRESET_FOODS = [
+          { name: '白飯 (1碗/150g)', calories: 180, category: '主食' },
+          { name: '煎雞胸肉 (100g)', calories: 133, category: '蛋白質' },
+          { name: '富士蘋果 (1個/150g)', calories: 80, category: '水果' },
+          { name: '全脂牛奶 (250ml)', calories: 150, category: '飲品' },
+          { name: '水煮蛋 (1個)', calories: 78, category: '蛋白質' },
+          { name: '牛油果沙律 (1盤)', calories: 220, category: '蔬菜' }
+        ];
+
+        const MET_DATABASE = [
+          { name: '健身房樓梯機 (Stairmaster)', met: 9.0, category: '有氧訓練', desc: '極高效的下肢與臀肌殺手，心肺燃脂效率極高' },
+          { name: '跑步機斜坡爬坡 (15%斜度 / 4.5km/h)', met: 7.5, category: '有氧訓練', desc: '超強低衝擊燃脂，保護膝蓋的同時模擬登山消耗' },
+          { name: '太空漫步機 (Elliptical Trainer)', met: 5.0, category: '有氧訓練', desc: '全身性對抗阻力，低關節衝擊的經典有氧選擇' },
+          { name: '快速跳繩', met: 10.0, category: '有氧訓練', desc: '極高效的心肺刺激與爆發力鍛鍊' },
+          { name: '慢跑 (約 8km/h)', met: 8.0, category: '有氧訓練', desc: '經典的有氧燃脂跑步配配速' },
+          { name: '槓鈴深蹲 (Barbell Squat)', met: 6.0, category: '重量訓練', desc: '主要鍛鍊股四頭肌、臀大肌與核心穩定' },
+          { name: '槓鈴硬舉 (Barbell Deadlift)', met: 6.0, category: '重量訓練', desc: '全身性複合動作，強化後側鏈及握力' },
+          { name: '平板槓鈴臥推 (Bench Press)', met: 5.5, category: '重量訓練', desc: '主要鍛鍊胸大肌、三角肌前束及肱三頭肌' },
+          { name: '啞鈴肩推 (Dumbbell Shoulder Press)', met: 5.0, category: '重量訓練', desc: '鍛鍊三角肌中束與前束，塑造飽滿肩部' },
+          { name: '滑輪下拉 / 引體上升', met: 5.0, category: '重量訓練', desc: '鍛鍊背闊肌、大圓肌，打造倒三角體型' },
+          { name: '器械循環重訓 (Circuit Training)', met: 4.5, category: '重量訓練', desc: '安全孤立各目標肌群，適合新手及塑形' },
+          { name: '壺鈴擺動 (Kettlebell Swing)', met: 8.0, category: '重量訓練', desc: '高爆發力全身協調訓練，兼顧力量與心肺' },
+          { name: '羽毛球 (單打對抗)', met: 5.5, category: '球類運動', desc: '高頻變向、急停與揮拍，消耗極大' },
+          { name: '瑜伽 / 普拉提', met: 2.5, category: '拉伸放鬆', desc: '改善體態、強化核心與肌肉延展性' }
+        ];
+
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    profile: {
+                        name: '健身達人',
+                        height: 175,
+                        calorieGoal: 2000,
+                        weightGoal: 68.0,
+                        bodyFatGoal: 15.0
+                    },
+                    history: [
+                        {
+                          date: '05-19', // Day 1
+                          weight: 75.0,
+                          bodyFat: 20.5,
+                          foods: [
+                            { name: '燕麥粥', calories: 250 },
+                            { name: '煎雞胸肉飯', calories: 650 },
+                            { name: '香蕉', calories: 90 },
+                            { name: '肥牛火鍋', calories: 950 }
+                          ],
+                          exercises: [{ name: '槓鈴深蹲', calories: 250 }]
+                        },
+                        {
+                          date: '05-20', // Day 2
+                          weight: 74.6,
+                          bodyFat: 20.2,
+                          foods: [
+                            { name: '全麥麵包', calories: 200 },
+                            { name: '牛肉湯麵', calories: 600 },
+                            { name: '富士蘋果', calories: 80 },
+                            { name: '烤三文魚沙律', calories: 550 }
+                          ],
+                          exercises: [{ name: '平板槓鈴臥推', calories: 220 }]
+                        },
+                        {
+                          date: '05-21', // Day 3
+                          weight: 74.2,
+                          bodyFat: 19.9,
+                          foods: [
+                            { name: '雞蛋餅', calories: 300 },
+                            { name: '滑蛋蝦仁飯', calories: 700 },
+                            { name: '酸奶', calories: 120 },
+                            { name: '輕食沙律', calories: 450 }
+                          ],
+                          exercises: [{ name: '槓鈴硬舉', calories: 300 }]
+                        },
+                        {
+                          date: '05-22', // Day 4
+                          weight: 73.9,
+                          bodyFat: 19.6,
+                          foods: [
+                            { name: '火腿三文治', calories: 350 },
+                            { name: '焗豬扒飯', calories: 850 },
+                            { name: '拿鐵咖啡', calories: 130 }
+                          ],
+                          exercises: [{ name: '慢跑', calories: 350 }]
+                        },
+                        {
+                          date: '05-23', // Day 5
+                          weight: 73.5,
+                          bodyFat: 19.2,
+                          foods: [
+                            { name: '水煮蛋2個', calories: 160 },
+                            { name: '雞胸肉沙律', calories: 450 },
+                            { name: '無糖美式咖啡', calories: 10 },
+                            { name: '煎牛肉配西蘭花', calories: 550 }
+                          ],
+                          exercises: [{ name: '樓梯機 (30分鐘)', calories: 326 }]
+                        },
+                        {
+                          date: '06-01', 
+                          weight: 72.8,
+                          bodyFat: 18.5,
+                          foods: [
+                            { name: '吞拿魚包', calories: 280 },
+                            { name: '海南雞飯', calories: 720 },
+                            { name: '蛋白粉', calories: 120 }
+                          ],
+                          exercises: [{ name: '斜坡爬坡 (45分鐘)', calories: 360 }]
+                        },
+                        {
+                          date: '06-02', 
+                          weight: 72.4,
+                          bodyFat: 18.1,
+                          foods: [
+                            { name: '全麥吐司', calories: 150 },
+                            { name: '鮮蝦雲吞麵', calories: 480 },
+                            { name: '叉燒配白切雞', calories: 600 }
+                          ],
+                          exercises: [{ name: '啞鈴肩推', calories: 200 }]
+                        }
+                    ],
+                    todayData: {
+                        date: '06-03',
+                        weight: 72.1,
+                        bodyFat: 17.8,
+                        foods: [
+                          { id: '1', name: '全麥麵包 & 煎蛋', calories: 280, category: '早餐' },
+                          { id: '2', name: '黑咖啡', calories: 5, category: '飲品' },
+                          { id: '3', name: '黑椒牛柳便當', calories: 620, category: '午餐' }
+                        ],
+                        exercises: [
+                          { id: '1', name: '健身房樓梯機 (45分鐘)', calories: 487, category: '有氧訓練' }
+                        ]
+                    },
+                    activeTab: 'dashboard',
+                    selectedMonth: '全部',
+                    historyChartType: 'weight',
+                    showFoodModal: false,
+                    showExerciseModal: false,
+                    showWeightModal: false,
+                    foodForm: { name: '', calories: '', category: '午餐' },
+                    exerciseForm: { name: '', calories: '', category: '重量訓練' },
+                    weightInput: '72.1',
+                    bodyFatInput: '17.8',
+                    exerciseInputMode: 'smart',
+                    selectedMetIndex: 0,
+                    exerciseDuration: 45,
+                    searchExerciseQuery: '',
+                    toast: { show: false, message: '', type: 'success' },
+                    presetFoods: PRESET_FOODS,
+                    metDatabase: MET_DATABASE
+                }
+            },
+            computed: {
+                todayTotals() {
+                    const intake = this.todayData.foods.reduce((sum, f) => sum + Number(f.calories), 0);
+                    const burned = this.todayData.exercises.reduce((sum, e) => sum + Number(e.calories), 0);
+                    const net = intake - burned;
+                    const remaining = this.profile.calorieGoal - net;
+                    const percent = Math.min(Math.round((intake / this.profile.calorieGoal) * 100), 100);
+                    const heightInMeters = this.profile.height / 100;
+                    const bmi = (this.todayData.weight / (heightInMeters * heightInMeters)).toFixed(1);
+                    
+                    let bmiCategory = '';
+                    let bmiColor = '';
+                    const bmiNum = parseFloat(bmi);
+                    if (bmiNum < 18.5) {
+                      bmiCategory = '偏瘦';
+                      bmiColor = 'text-blue-600 bg-blue-50 border border-blue-200';
+                    } else if (bmiNum < 24) {
+                      bmiCategory = '正常';
+                      bmiColor = 'text-emerald-600 bg-emerald-50 border border-emerald-200';
+                    } else if (bmiNum < 28) {
+                      bmiCategory = '偏胖';
+                      bmiColor = 'text-amber-600 bg-amber-50 border border-amber-200';
+                    } else {
+                      bmiCategory = '肥胖';
+                      bmiColor = 'text-rose-600 bg-rose-50 border border-rose-200';
+                    }
+
+                    return { intake, burned, net, remaining, percent, bmi, bmiCategory, bmiColor };
+                },
+                dynamicHealthAnalysis() {
+                    const remaining = this.todayTotals.remaining;
+                    const burned = this.todayTotals.burned;
+                    
+                    if (burned >= 400) {
+                      return `今日累積運動消耗達 ${burned} kcal，已啟動高效的脂肪燃燒與肌群重塑模式。請注意適時補充水分與流失的電解質。`;
+                    }
+                    if (remaining < 0) {
+                      return `當前淨熱量攝入已超出每日卡路里限定範圍（超支 ${Math.abs(remaining)} kcal）。建議適度增加低衝擊有氧運動（如爬坡或樓梯機），以平抑今日的熱量盈餘。`;
+                    }
+                    if (remaining > 500) {
+                      return `當前仍有 ${remaining} kcal 的淨配額空間。若今日已完成抗阻力量訓練，建議及時攝入優質蛋白質與複合碳水化合物，以利於肌肉纖維的修復與合成。`;
+                    }
+                    return "今日熱量攝入與運動消耗比例維持在健康區間。持之以恆的規律記錄是優化身體成分、降低體脂率最核心的基石。";
+                },
+                calculatedSmartBurn() {
+                    const metObj = this.metDatabase[this.selectedMetIndex];
+                    if (!metObj) return 0;
+                    return Math.round(metObj.met * this.todayData.weight * (this.exerciseDuration / 60));
+                },
+                filteredMetDatabase() {
+                    if (!this.searchExerciseQuery) return this.metDatabase;
+                    return this.metDatabase.filter(item => 
+                      item.name.toLowerCase().includes(this.searchExerciseQuery.toLowerCase()) ||
+                      item.category.toLowerCase().includes(this.searchExerciseQuery.toLowerCase())
+                    );
+                },
+                availableMonths() {
+                    const months = new Set();
+                    this.history.forEach(h => {
+                      const m = h.date.split('-')[0];
+                      months.add(m);
+                    });
+                    const todayM = this.todayData.date.split('-')[0];
+                    months.add(todayM);
+                    return ['全部', ...Array.from(months).sort()];
+                },
+                combinedChartData() {
+                    const list = [...this.history];
+                    list.push({
+                      date: this.todayData.date,
+                      weight: this.todayData.weight,
+                      bodyFat: this.todayData.bodyFat,
+                      foods: [...this.todayData.foods],
+                      exercises: [...this.todayData.exercises]
+                    });
+                    return list;
+                },
+                filteredChartData() {
+                    if (this.selectedMonth === '全部') {
+                      return this.combinedChartData.slice(-10);
+                    }
+                    return this.combinedChartData.filter(d => d.date.startsWith(this.selectedMonth));
+                },
+                weightBoundaries() {
+                    if (this.filteredChartData.length === 0) return { min: 50, max: 100 };
+                    const weights = this.filteredChartData.map(d => d.weight);
+                    const min = Math.min(...weights) - 0.5;
+                    const max = Math.max(...weights) + 0.5;
+                    return { min, max };
+                },
+                bodyFatBoundaries() {
+                    if (this.filteredChartData.length === 0) return { min: 5, max: 35 };
+                    const bodyFats = this.filteredChartData.map(d => d.bodyFat);
+                    const min = Math.max(0, Math.min(...bodyFats) - 0.5);
+                    const max = Math.max(...bodyFats) + 0.5;
+                    return { min, max };
+                },
+                chartPoints() {
+                    const list = this.filteredChartData;
+                    const totalPoints = list.length;
+                    if (totalPoints === 0) return [];
+                    const xStep = 510 / (totalPoints - 1);
+                    
+                    const isWeight = this.historyChartType === 'weight';
+                    const minVal = isWeight ? this.weightBoundaries.min : this.bodyFatBoundaries.min;
+                    const maxVal = isWeight ? this.weightBoundaries.max : this.bodyFatBoundaries.max;
+                    const range = maxVal - minVal || 1;
+
+                    return list.map((d, i) => {
+                      const x = 50 + i * xStep;
+                      const currentVal = isWeight ? d.weight : d.bodyFat;
+                      const y = 200 - ((currentVal - minVal) / range) * 160;
+                      return { x, y, val: currentVal, date: d.date };
+                    });
+                },
+                chartPointsPath() {
+                    return this.chartPoints.map(p => `${p.x},${p.y}`).join(' ');
+                },
+                chartPointsShadowPath() {
+                    const pts = this.chartPoints;
+                    if (pts.length === 0) return '';
+                    const linePath = pts.map(p => `${p.x},${p.y}`).join(' L ');
+                    return `M 50,200 L ${linePath} L ${pts[pts.length - 1].x},200 Z`;
+                }
+            },
+            methods: {
+                triggerToast(message, type = 'success') {
+                    this.toast.message = message;
+                    this.toast.type = type;
+                    this.toast.show = true;
+                    setTimeout(() => {
+                        this.toast.show = false;
+                    }, 3000);
+                },
+                getFoodCaloriesSum(day) {
+                    return day.foods.reduce((sum, f) => sum + f.calories, 0);
+                },
+                getExerciseCaloriesSum(day) {
+                    return day.exercises.reduce((sum, e) => sum + e.calories, 0);
+                },
+                handleAddFood() {
+                    if (!this.foodForm.name || !this.foodForm.calories) return;
+                    const newFood = {
+                      id: Date.now().toString(),
+                      name: this.foodForm.name,
+                      calories: Math.abs(parseInt(this.foodForm.calories)) || 0,
+                      category: this.foodForm.category
+                    };
+                    this.todayData.foods.push(newFood);
+                    this.foodForm = { name: '', calories: '', category: '午餐' };
+                    this.showFoodModal = false;
+                    this.triggerToast(`成功記錄飲食: ${newFood.name}`);
+                },
+                handleAddPresetFood(preset) {
+                    const newFood = {
+                      id: Date.now().toString(),
+                      name: preset.name,
+                      calories: preset.calories,
+                      category: '加餐'
+                    };
+                    this.todayData.foods.push(newFood);
+                    this.showFoodModal = false;
+                    this.triggerToast(`快捷錄入: ${preset.name}`);
+                },
+                handleDeleteFood(id) {
+                    this.todayData.foods = this.todayData.foods.filter(f => f.id !== id);
+                    this.triggerToast('已刪除該筆飲食', 'warning');
+                },
+                handleAddExercise() {
+                    let newExercise;
+                    if (this.exerciseInputMode === 'smart') {
+                      const metObj = this.metDatabase[this.selectedMetIndex];
+                      newExercise = {
+                        id: Date.now().toString(),
+                        name: `${metObj.name} (${this.exerciseDuration}分鐘)`,
+                        calories: this.calculatedSmartBurn,
+                        category: metObj.category
+                      };
+                    } else {
+                      if (!this.exerciseForm.name || !this.exerciseForm.calories) return;
+                      newExercise = {
+                        id: Date.now().toString(),
+                        name: this.exerciseForm.name,
+                        calories: Math.abs(parseInt(this.exerciseForm.calories)) || 0,
+                        category: this.exerciseForm.category
+                      };
+                    }
+                    this.todayData.exercises.push(newExercise);
+                    this.exerciseForm = { name: '', calories: '', category: '重量訓練' };
+                    this.showExerciseModal = false;
+                    this.triggerToast(`成功記錄運動: ${newExercise.name}`);
+                },
+                quickSelectExercise(item) {
+                    const metIdx = this.metDatabase.findIndex(db => db.name === item.name);
+                    if (metIdx !== -1) {
+                      this.selectedMetIndex = metIdx;
+                      this.exerciseInputMode = 'smart';
+                      this.exerciseDuration = 45;
+                      this.showExerciseModal = true;
+                    }
+                },
+                handleDeleteExercise(id) {
+                    this.todayData.exercises = this.todayData.exercises.filter(e => e.id !== id);
+                    this.triggerToast('已刪除該筆運動', 'warning');
+                },
+                handleSaveWeightAndFat() {
+                    const weightVal = parseFloat(this.weightInput);
+                    const fatVal = parseFloat(this.bodyFatInput);
+                    if (!isNaN(weightVal) && weightVal > 0) {
+                      this.todayData.weight = weightVal;
+                      if (!isNaN(fatVal)) {
+                        this.todayData.bodyFat = fatVal;
+                      }
+                      this.showWeightModal = false;
+                      this.triggerToast('體重與體脂更新成功！');
+                    }
+                },
+                handleCompleteDay() {
+                    const todayFormatted = {
+                      date: this.todayData.date,
+                      weight: this.todayData.weight,
+                      bodyFat: this.todayData.bodyFat,
+                      foods: [...this.todayData.foods],
+                      exercises: [...this.todayData.exercises]
+                    };
+                    const filtered = this.history.filter(h => h.date !== this.todayData.date);
+                    this.history = [...filtered, todayFormatted];
+                    this.triggerToast(`第 ${this.history.length} 天數據已成功儲存！🐾`);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
